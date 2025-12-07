@@ -1,0 +1,54 @@
+Instalar Python desde la Fuente Oficial
+    Asegúrate de marcar la casilla que dice "Add python.exe to PATH" (Agregar python.exe a la RUTA) en la primera pantalla del instalador.
+
+Entorno virtual
+    Crear el entonro virtual (DESDE POWERSHELL terminal en vscode)
+
+        python -m venv <nombre_del_entorno>
+
+    Activar el entorno virtual
+
+        .\venv\Scripts\Activate.ps1
+
+    Si da error poner:
+        Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Unrestricted -Force
+
+GIT:
+    Presionar Q si en el gún momento te muestra algo y sales de ahí
+
+    git config --global user.name "username": nombre de quien hace los cambios
+    git config --global user.email "youremail@email.com": correo de quien hace los cambios
+    git init: inicializar un empty Git repository
+    git status: obtener el status
+    git add .: añadir todos los cambios de todos los files al staging area
+    git commit -m "your_message": haces un commit de todos los cambios y le pones de mensaje lo que quieras
+    git clone <URL>: para clonar un repositorio de github
+        git clone --origin <nuevo_alias> <URL>: para renombrar cuando clonas un repositorio
+        git remote -v: ver los remotos que tienes guardados y sus alias
+    git remote add origin <URL>: to add a remote repository to your local one, so you can upload a file
+    git checkout -b <your_branch_name>: creas una branch nueva 
+    git branch: ves todas las branches del repositorio
+    git branch -M main: to set the main branch
+    git switch <your_branch_name>: cambias a la branch que quieras
+    git push <alias_of_target_repository> <your_branch_name>: haces push al repositorio destino con la branch que quieras
+    git push -u <alias_of_target_repository> <your_branch_name>: la primera vez que se sube una branch
+    git pull: actualizas todas las instancias y branches de tu repositorio local con el del repositorio remoto
+    git show: te da de un vistazo todos los cambios que se han hecho en la branch en la que estás situado
+    git branch -d <your_branch_name>: elimina una branch localmente
+    git push --delete <alias_of_target_repository> <your_branch_name>: borra una branch en el repositorio remoto
+    git merge main: integra los cambios de la rama main en tu rama de trabajo
+
+Crear un ejecutable
+
+    Abre tu terminal (o Símbolo del Sistema/PowerShell) y navega hasta el directorio donde se encuentra tu archivo sql_tester.py.
+
+    Ejecutar PyInstaller:
+    Usa el siguiente comando. Las opciones que usamos son importantes:
+
+    -w o --windowed: Le dice a PyInstaller que no abra una ventana de consola (línea de comandos) al ejecutar la aplicación, lo cual es ideal para una aplicación de interfaz gráfica (GUI) como la tuya.
+
+    --onefile: Empaqueta toda la aplicación y sus dependencias en un único archivo .exe, facilitando su distribución.
+
+    --name "SQLTester": Define el nombre del archivo ejecutable final.
+
+    pyinstaller --onefile --windowed --name "SQLTester" sql_tester.py
