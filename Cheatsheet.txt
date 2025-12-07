@@ -13,6 +13,14 @@ Entorno virtual
     Si da error poner:
         Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Unrestricted -Force
 
+    Para operar con jupyter notebook:
+
+    Instalar
+        pip install ipykernel
+
+    Registrarlo 
+        python -m ipykernel install --user --name=myenv --display-name="Mi Proyecto Kernel (myenv)"
+
 GIT:
     Presionar Q si en el gún momento te muestra algo y sales de ahí
 
