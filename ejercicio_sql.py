@@ -179,7 +179,43 @@ class SQLTesterApp:
             self.message_label.config(text="Por favor, introduce una consulta SQL.")
             self.clear_treeview()
             return
-        
+
+        # Detección y corrección para el comando DESCRIBE no soportado en SQLite
+        upper_query = query.upper()
+        if upper_query.startswith('DESCRIBE') or upper_query.startswith('DESC '):
+            try:
+                # Extrae el nombre de la tabla
+                table_name = query.split()[1].strip(';').lower()
+                
+                # Verifica si la tabla existe en nuestro set de datos
+                if table_name in self.tables:
+                    # Usa PRAGMA table_info (equivalente a DESCRIBE en SQLite)
+                    pragma_query = f"PRAGMA table_info({table_name})"
+                    
+                    result_df = pd.read_sql_query(pragma_query, self.conn)
+                    self.display_result(result_df)
+                    
+                    # Mensaje informativo para el usuario
+                    self.message_label.config(
+                        text=f"Consulta PRAGMA ejecutada (equivalente a DESCRIBE). Resultado a la derecha.", 
+                        foreground='purple'
+                    )
+                    return # Salimos después de ejecutar el PRAGMA
+                else:
+                    self.clear_treeview()
+                    self.message_label.config(text=f"ERROR SQL: Tabla '{table_name}' no encontrada.", foreground='red')
+                    return
+            except IndexError:
+                self.clear_treeview()
+                self.message_label.config(text="ERROR: Sintaxis de DESCRIBE inválida. Usa 'DESCRIBE nombre_tabla'.", foreground='red')
+                return
+            except Exception as e:
+                self.clear_treeview()
+                self.message_label.config(text=f"ERROR en DESCRIBE/PRAGMA: {e}", foreground='red')
+                return
+
+
+        # Si no es DESCRIBE, procede con la ejecución normal de la consulta (SELECT, etc.)
         try:
             # Ejecutar la consulta y obtener el DataFrame resultante
             result_df = pd.read_sql_query(query, self.conn)
@@ -229,21 +265,31 @@ class SQLTesterApp:
             # 2. Obtener el resultado del usuario
             user_df = pd.read_sql_query(user_query, self.conn)
 
-            # 3. Normalizar DataFrames para una comparación estricta
-            user_df.columns = [c.lower() for c in user_df.columns]
-            expected_df.columns = [c.lower() for c in expected_df.columns]
+            # 3. Normalizar DataFrames para una comparación estricta (compatibilidad de versiones de Pandas)
             
-            # Asegurarse de que el orden de las columnas sea el mismo (SQL no garantiza el orden)
-            if len(user_df.columns) == len(expected_df.columns):
-                 user_df = user_df[expected_df.columns]
+            # Chequear nombres de columnas (ignorando mayúsculas/minúsculas)
+            expected_cols = [c.lower() for c in expected_df.columns]
+            user_cols = [c.lower() for c in user_df.columns]
+
+            if expected_cols != user_cols:
+                raise AssertionError(
+                    f"Las columnas no coinciden. Esperado: {expected_cols}, Obtenido: {user_cols}"
+                )
             
-            # Compara el contenido de los DataFrames
+            # Reordenar las columnas del usuario para que coincidan con el orden esperado (necesario para la validación de Pandas)
+            user_df = user_df[[col for col in expected_df.columns]]
+            
+            # Reiniciar índices para la comparación (ignora el orden de las filas si el ORDER BY es el mismo)
+            expected_df = expected_df.reset_index(drop=True)
+            user_df = user_df.reset_index(drop=True)
+            
+            # Comparar el contenido de los DataFrames, excluyendo el argumento 'check_column_order'
+            # para compatibilidad con versiones antiguas de Pandas.
             pd.testing.assert_frame_equal(
-                expected_df.reset_index(drop=True), # Resetear índices para que no influyan
-                user_df.reset_index(drop=True),
-                check_dtype=True, # Comprueba si los tipos de datos son iguales
-                check_exact=False, # Permite pequeñas diferencias en floats
-                check_column_order=True # Asegúrate de que el orden y nombre de las columnas es el mismo
+                expected_df, 
+                user_df,
+                check_dtype=True, 
+                check_exact=False # Permite pequeñas diferencias en floats
             )
 
             # Si la comparación es exitosa (no lanza error)
