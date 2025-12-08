@@ -3,42 +3,59 @@ from tkinter import ttk, scrolledtext, messagebox
 import pandas as pd
 import sqlite3
 import sys
+import os # Necesario para la lectura de archivos
 
 # --- 1. CONFIGURACIÓN DE DATOS Y EJERCICIOS ---
 
-# Tablas de datos de ejemplo (DataFrames de Pandas)
-# Los nombres de las tablas se usarán en las consultas SQL
-df_products = pd.DataFrame({
-    'product_id': [1, 2, 3, 4],
-    'name': ['Laptop', 'Mouse', 'Keyboard', 'Monitor'],
-    'price': [1200, 25, 75, 300],
-    'category': ['Electronics', 'Accessories', 'Accessories', 'Electronics']
-})
+# Contenido simulado de archivos SQL (DDL y DML).
+# Estos comandos CREATE y INSERT se ejecutarán para crear las tablas y poblarlas.
+SQL_PRODUCTS_SETUP = """
+DROP TABLE IF EXISTS products;
+CREATE TABLE products (
+    product_id INTEGER PRIMARY KEY,
+    name TEXT,
+    price REAL,
+    category TEXT
+);
+INSERT INTO products (product_id, name, price, category) VALUES (1, 'Laptop', 1200, 'Electronics');
+INSERT INTO products (product_id, name, price, category) VALUES (2, 'Mouse', 25, 'Accessories');
+INSERT INTO products (product_id, name, price, category) VALUES (3, 'Keyboard', 75, 'Accessories');
+INSERT INTO products (product_id, name, price, category) VALUES (4, 'Monitor', 300, 'Electronics');
+"""
 
-df_sales = pd.DataFrame({
-    'sale_id': [101, 102, 103, 104, 105],
-    'product_id': [1, 3, 2, 4, 1],
-    'quantity': [2, 5, 10, 1, 3],
-    # CORREGIDO: Aseguramos que la lista tenga 5 elementos separados
-    'sale_date': ['2023-10-01', '2023-10-02', '2023-10-03', '2023-10-04', '2023-10-05'] 
-})
+SQL_SALES_SETUP = """
+DROP TABLE IF EXISTS sales;
+CREATE TABLE sales (
+    sale_id INTEGER PRIMARY KEY,
+    product_id INTEGER,
+    quantity INTEGER,
+    sale_date TEXT,
+    FOREIGN KEY (product_id) REFERENCES products(product_id)
+);
+INSERT INTO sales (sale_id, product_id, quantity, sale_date) VALUES (101, 1, 2, '2023-10-01');
+INSERT INTO sales (sale_id, product_id, quantity, sale_date) VALUES (102, 3, 5, '2023-10-02');
+INSERT INTO sales (sale_id, product_id, quantity, sale_date) VALUES (103, 2, 10, '2023-10-03');
+INSERT INTO sales (sale_id, product_id, quantity, sale_date) VALUES (104, 4, 1, '2023-10-04');
+INSERT INTO sales (sale_id, product_id, quantity, sale_date) VALUES (105, 1, 3, '2023-10-05');
+"""
 
-# Renombrar DataFrames para que coincidan con los nombres de tabla en SQL
+# Definición de las tablas. Ahora contienen la ruta al archivo .sql y el contenido interno (fallback).
 TABLES = {
     'products': {
-        'df': df_products,
+        'file_path': 'sql_setup/products.sql', # Ruta al archivo SQL para el entorno real
+        'content': SQL_PRODUCTS_SETUP, # Contenido SQL interno para fallback
         'description': "Contiene información sobre los artículos que se venden.",
         'columns': "product_id (clave), name (nombre del producto), price (precio unitario), category (categoría)."
     },
     'sales': {
-        'df': df_sales,
+        'file_path': 'sql_setup/sales.sql', # Ruta al archivo SQL para el entorno real
+        'content': SQL_SALES_SETUP, # Contenido SQL interno para fallback
         'description': "Registra las transacciones de venta.",
         'columns': "sale_id (clave), product_id (clave foránea a 'products'), quantity (cantidad vendida), sale_date (fecha de venta)."
     }
 }
 
-# Definición de los ejercicios
-# Cada ejercicio tiene un 'prompt' (instrucción) y un 'correct_query' (solución para la validación).
+# Definición de los ejercicios (sin cambios)
 EXERCISES = [
     {
         'prompt': "Ejercicio 1/3: Muestra el `name` y el `price` de todos los productos. Ordena por nombre alfabéticamente.",
@@ -163,14 +180,33 @@ class SQLTesterApp:
         self.schema_text.set(schema_info.strip())
 
     def _load_tables_to_db(self):
-        """Carga los DataFrames de Pandas a la base de datos SQLite en memoria."""
+        """Carga las tablas ejecutando scripts SQL (desde archivo o fallback) en la base de datos SQLite."""
         try:
             for table_name, data in self.tables.items():
-                data['df'].to_sql(table_name, self.conn, if_exists='replace', index=False)
-            print("Tablas cargadas exitosamente en la DB en memoria.")
+                sql_script = data['content'] # Usamos el contenido interno por defecto
+                file_path = data['file_path']
+                
+                # Intenta leer el archivo SQL real
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        sql_script = f.read()
+                    print(f"Éxito: Leyendo la configuración SQL desde el archivo: {file_path}")
+                except FileNotFoundError:
+                    # Si no encuentra el archivo real, usa el contenido interno (fallback)
+                    # No mostramos el warning aquí para no interrumpir la experiencia si es intencional
+                    pass 
+                except Exception as e:
+                    messagebox.showwarning("Advertencia de Archivo", f"Error al leer {file_path}. Usando datos internos: {e}")
+
+                # Ejecutar el script SQL (CREATE TABLE + INSERTs)
+                self.conn.executescript(sql_script)
+
+            self.conn.commit() # Confirmar todas las transacciones
+            print("Tablas cargadas exitosamente ejecutando scripts SQL en la DB en memoria.")
         except Exception as e:
-            messagebox.showerror("Error de Inicialización", f"No se pudieron cargar las tablas: {e}")
+            messagebox.showerror("Error de Inicialización SQL", f"No se pudo ejecutar el script SQL para crear las tablas: {e}")
             sys.exit(1)
+
 
     def execute_query(self):
         """Ejecuta la consulta del usuario y muestra el resultado en el Treeview."""
@@ -302,7 +338,7 @@ class SQLTesterApp:
             print(f"Detalle de la diferencia (debug): {e}")
         except Exception as e:
             # Error de sintaxis o de ejecución de la consulta
-            self.message_label.config(text=f"ERROR SQL o de validación: {e}", foreground='red')
+            self.message_label.config(text=f"ERROR SQL o de validación: {e}", foreground='red') # Cita corregida
 
     def load_exercise(self):
         """Carga el ejercicio actual en la UI."""
