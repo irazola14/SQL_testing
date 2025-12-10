@@ -42,8 +42,8 @@ INSERT INTO sales (sale_id, product_id, quantity, sale_date) VALUES (105, 1, 3, 
 SQL_BRANDS_SETUP = """
 DROP TABLE IF EXISTS brands;
 CREATE TABLE brands (
-	brand_id INT PRIMARY KEY,
-	brand_name VARCHAR (255) NOT NULL
+	brand_id INTEGER KEY,
+	brand_name TEXT NOT NULL
 );
 
 INSERT INTO brands(brand_id,brand_name) VALUES(1,'Electra');
@@ -63,19 +63,16 @@ TABLES = {
         'file_path': 'sql_setup/products.sql', # Ruta al archivo SQL para el entorno real
         'content': SQL_PRODUCTS_SETUP, # Contenido SQL interno para fallback
         'description': "Contiene información sobre los artículos que se venden.",
-        'columns': "product_id (clave), name (nombre del producto), price (precio unitario), category (categoría)."
     },
     'sales': {
         'file_path': 'sql_setup/sales.sql', # Ruta al archivo SQL para el entorno real
         'content': SQL_SALES_SETUP, # Contenido SQL interno para fallback
         'description': "Registra las transacciones de venta.",
-        'columns': "sale_id (clave), product_id (clave foránea a 'products'), quantity (cantidad vendida), sale_date (fecha de venta)."
     },
     'brands': {
         'file_path': 'sql_setup/brands.sql', # Ruta al archivo SQL para el entorno real
         'content': SQL_BRANDS_SETUP, # Contenido SQL interno para fallback
-        'description': "Registra las marcas.",
-        'columns': "brand_id (clave), brand_name (nombre de la marca)."
+        'description': "Registra las marcas."
     }
 }
 
@@ -200,7 +197,6 @@ class SQLTesterApp:
         for name, data in self.tables.items():
             schema_info += f"Tabla: {name.upper()}\n"
             schema_info += f"  - Descripción: {data['description']}\n"
-            schema_info += f"  - Columnas: {data['columns']}\n\n"
         self.schema_text.set(schema_info.strip())
 
     def _load_tables_to_db(self):
