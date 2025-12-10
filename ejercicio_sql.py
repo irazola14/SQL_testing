@@ -342,6 +342,7 @@ INSERT INTO products(product_id, product_name, brand_id, category_id, model_year
 INSERT INTO products(product_id, product_name, brand_id, category_id, model_year, list_price) VALUES(319,'Trek Checkpoint SL 5 Women''s - 2019',9,7,2019,2799.99);
 INSERT INTO products(product_id, product_name, brand_id, category_id, model_year, list_price) VALUES(320,'Trek Checkpoint SL 6 - 2019',9,7,2019,3799.99);
 INSERT INTO products(product_id, product_name, brand_id, category_id, model_year, list_price) VALUES(321,'Trek Checkpoint ALR Frameset - 2019',9,7,2019,3199.99);
+INSERT INTO products(product_id, product_name, brand_id, category_id, model_year, list_price) VALUES(322,'Trek Checkpoint ALR Frameset - 2019',9,7,2019,3399.99);
 """
 
 SQL_SALES_SETUP = """
