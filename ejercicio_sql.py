@@ -39,6 +39,24 @@ INSERT INTO sales (sale_id, product_id, quantity, sale_date) VALUES (104, 4, 1, 
 INSERT INTO sales (sale_id, product_id, quantity, sale_date) VALUES (105, 1, 3, '2023-10-05');
 """
 
+SQL_BRANDS_SETUP = """
+DROP TABLE IF EXISTS brands;
+CREATE TABLE brands (
+	brand_id INT PRIMARY KEY,
+	brand_name VARCHAR (255) NOT NULL
+);
+
+INSERT INTO brands(brand_id,brand_name) VALUES(1,'Electra');
+INSERT INTO brands(brand_id,brand_name) VALUES(2,'Haro');
+INSERT INTO brands(brand_id,brand_name) VALUES(3,'Heller');
+INSERT INTO brands(brand_id,brand_name) VALUES(4,'Pure Cycles');
+INSERT INTO brands(brand_id,brand_name) VALUES(5,'Ritchey');
+INSERT INTO brands(brand_id,brand_name) VALUES(6,'Strider');
+INSERT INTO brands(brand_id,brand_name) VALUES(7,'Sun Bicycles');
+INSERT INTO brands(brand_id,brand_name) VALUES(8,'Surly');
+INSERT INTO brands(brand_id,brand_name) VALUES(9,'Trek');
+"""
+
 # Definición de las tablas. Ahora contienen la ruta al archivo .sql y el contenido interno (fallback).
 TABLES = {
     'products': {
@@ -52,6 +70,12 @@ TABLES = {
         'content': SQL_SALES_SETUP, # Contenido SQL interno para fallback
         'description': "Registra las transacciones de venta.",
         'columns': "sale_id (clave), product_id (clave foránea a 'products'), quantity (cantidad vendida), sale_date (fecha de venta)."
+    },
+    'brands': {
+        'file_path': 'sql_setup/brands.sql', # Ruta al archivo SQL para el entorno real
+        'content': SQL_BRANDS_SETUP, # Contenido SQL interno para fallback
+        'description': "Registra las marcas.",
+        'columns': "brand_id (clave), brand_name (nombre de la marca)."
     }
 }
 
@@ -259,7 +283,8 @@ class SQLTesterApp:
             self.message_label.config(text="Consulta ejecutada. Revisa los resultados a la derecha.")
         except Exception as e:
             self.clear_treeview()
-            self.message_label.config(text=f"ERROR SQL: {e}", foreground='red')
+            # CORREGIDO: Comilla simple de cierre
+            self.message_label.config(text=f"ERROR SQL: {e}", foreground='red') 
 
     def display_result(self, df):
         """Muestra un DataFrame en el widget Treeview."""
