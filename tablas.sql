@@ -3429,7 +3429,7 @@ INSERT INTO orders(order_id, customer_id, order_status, order_date, required_dat
 SQL_BRANDS_SETUP = """
 DROP TABLE IF EXISTS brands;
 CREATE TABLE brands (
-	brand_id INTEGER KEY,
+	brand_id INTEGER PRIMARY KEY,
 	brand_name TEXT NOT NULL
 );
 
