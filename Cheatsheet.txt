@@ -45,6 +45,8 @@ GIT:
     git branch -d <your_branch_name>: elimina una branch localmente
     git push --delete <alias_of_target_repository> <your_branch_name>: borra una branch en el repositorio remoto
     git merge main: integra los cambios de la rama main en tu rama de trabajo
+    git fetch origin: descarga la última versión del repositorio remoto (sin fusionar)
+    git reset --hard origin/main: restablece la rama local main a la posición exacta de origin/main: Este comando elimina permanentemente todos los commits locales y descarta cualquier cambio en el área de staging y en el directorio de trabajo, haciendo que tu rama local sea idéntica a la remota.
 
 Crear un ejecutable
 
