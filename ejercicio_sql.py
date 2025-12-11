@@ -416,6 +416,9 @@ class SQLTesterApp:
         self._last_token = ''
         self._last_table_prefix = ''
         self._last_column_prefix = ''
+        self._last_token_type = ''
+        # Lista paralela de tuples (type, value) mostradas actualmente en el listbox
+        self._suggestion_items = []
 
         # Botones
         button_frame = ttk.Frame(input_frame)
@@ -577,10 +580,11 @@ class SQLTesterApp:
                     self._last_token = last_token
                     self._last_table_prefix = resolved_table
                     self._last_column_prefix = column_prefix
+                    self._last_token_type = 'column_via_dot'
 
-                    # Mostrar popup con las sugerencias de columnas
-                    display_items = suggestions
-                    self._show_suggestions(display_items)
+                    # Mostrar popup con las sugerencias de columnas (marcadas como 'column')
+                    typed = [('column', c) for c in suggestions]
+                    self._show_suggestions(typed)
                     return "break"
         
         else:
@@ -591,31 +595,56 @@ class SQLTesterApp:
 
             # Nombres de todas las tablas (aseguramos minúsculas)
             table_names = [t.lower() for t in list(self.tables.keys())]
+            alias_map = self._get_alias_map(current_text)
 
-            all_keywords = [k.lower() for k in sql_keywords] + table_names
+            typed_suggestions = []
+            # Añadir keywords
+            for k in sql_keywords:
+                kl = k.lower()
+                if kl.startswith(last_token_lower) and kl != last_token_lower:
+                    typed_suggestions.append(('keyword', k.upper()))
 
-            suggestions = [
-                keyword for keyword in all_keywords
-                if keyword.startswith(last_token_lower) and keyword != last_token_lower
-            ]
+            # Añadir tablas
+            for t in table_names:
+                if t.startswith(last_token_lower) and t != last_token_lower:
+                    typed_suggestions.append(('table', t.upper()))
 
-            if suggestions:
+            # Si el token corresponde exactamente a una tabla o alias, ofrecer sus columnas
+            resolved_table = None
+            if last_token_lower in alias_map:
+                resolved_table = alias_map[last_token_lower]
+            elif last_token_lower in self.schema_metadata:
+                resolved_table = last_token_lower
+
+            if resolved_table and resolved_table in self.schema_metadata:
+                cols = self.schema_metadata[resolved_table]
+                # Incluir columnas como sugerencias (sin prefijo de tabla)
+                for c in cols:
+                    # Evitar insertar el mismo token como sugerencia
+                    if c != last_token_lower:
+                        typed_suggestions.append(('column', c))
+
+            if typed_suggestions:
                 # Si sólo hay una sugerencia, autocompletamos inmediatamente
-                if len(suggestions) == 1:
-                    completion = suggestions[0].upper()
-                    # Reemplazar la última palabra por la sugerencia completa
-                    text_widget.delete(start_index, "insert")
-                    text_widget.insert("insert", completion)
+                if len(typed_suggestions) == 1:
+                    typ, val = typed_suggestions[0]
+                    # Para columnas insertamos el nombre tal cual, para tablas/keywords usamos el valor
+                    if typ == 'column':
+                        text_widget.delete(start_index, "insert")
+                        text_widget.insert("insert", val)
+                    else:
+                        text_widget.delete(start_index, "insert")
+                        text_widget.insert("insert", val)
                     return "break"
 
                 # Guardamos contexto para aplicar la sugerencia más tarde
                 self._last_token = last_token
                 self._last_table_prefix = ''
                 self._last_column_prefix = ''
+                self._last_token_type = 'table_token_or_keyword'
 
-                # Presentar sugerencias (keywords y tablas)
-                display_items = [s.upper() for s in suggestions]
-                self._show_suggestions(display_items)
+                # Presentar sugerencias (typed_suggestions contiene tuples)
+                self._show_suggestions(typed_suggestions)
                 return "break"
 
         return "break" # Evita que TAB mueva el foco
@@ -644,10 +673,21 @@ class SQLTesterApp:
             self._hide_suggestions()
             return
 
-        # Rellenar listbox
+        # `items` can be either a list of strings or a list of (type, value) tuples.
+        # Normalize into self._suggestion_items (list of tuples) and fill the listbox with display strings.
         self._suggestion_listbox.delete(0, tk.END)
+        self._suggestion_items = []
         for it in items:
-            self._suggestion_listbox.insert(tk.END, it)
+            if isinstance(it, (list, tuple)) and len(it) == 2:
+                typ, val = it
+                display = val
+                self._suggestion_items.append((typ, val))
+            else:
+                # Unknown type, keep as-is
+                typ, val = 'unknown', it
+                display = val
+                self._suggestion_items.append((typ, val))
+            self._suggestion_listbox.insert(tk.END, display)
         # Seleccionar primer elemento
         self._suggestion_listbox.selection_set(0)
 
@@ -686,12 +726,13 @@ class SQLTesterApp:
             pass
 
         sel = None
+        sel_type = None
         try:
             idx = self._suggestion_listbox.curselection()
             if not idx:
-                sel = self._suggestion_listbox.get(0)
+                sel_type, sel = self._suggestion_items[0]
             else:
-                sel = self._suggestion_listbox.get(idx[0])
+                sel_type, sel = self._suggestion_items[idx[0]]
         except Exception:
             self._hide_suggestions()
             return
@@ -705,17 +746,28 @@ class SQLTesterApp:
         # Volvemos al Text widget y aplicamos la inserción
         text_widget.focus_set()
 
-        if '.' in self._last_token:
-            # El token era table.column -> sólo sustituir la porción de columna
-            prefix_len = len(self._last_column_prefix)
-            if prefix_len > 0:
-                col_start_index = "insert - %sc" % prefix_len
+        # Aplicar según el tipo de la sugerencia seleccionada
+        if sel_type == 'column':
+            if '.' in self._last_token:
+                # Si el token original tenía table.column -> sustituir sólo la porción de columna
+                prefix_len = len(self._last_column_prefix)
+                if prefix_len > 0:
+                    col_start_index = "insert - %sc" % prefix_len
+                    try:
+                        text_widget.delete(col_start_index, "insert")
+                    except Exception:
+                        pass
+                # Insertar la columna (sin prefijo de tabla si así fue mostrada)
+                text_widget.insert("insert", sel)
+            else:
+                # Si el token era el nombre de la tabla en la lista de SELECT (p.ej. 'SELECT products'),
+                # reemplazamos toda la palabra por el nombre de la columna
                 try:
-                    text_widget.delete(col_start_index, "insert")
+                    start_index = "insert - %sc" % len(self._last_token)
+                    text_widget.delete(start_index, "insert")
                 except Exception:
                     pass
-            # Insertar la columna (mantener minúsculas)
-            text_widget.insert("insert", sel)
+                text_widget.insert("insert", sel)
         else:
             # Token simple (tabla o keyword): sustituir la última palabra
             try:
@@ -723,7 +775,7 @@ class SQLTesterApp:
                 text_widget.delete(start_index, "insert")
             except Exception:
                 pass
-            # Insertar la sugerencia (si es keyword, ya viene en mayúsculas)
+            # Insertar la sugerencia (si es keyword/tabla, ya viene en la forma deseada)
             text_widget.insert("insert", sel)
 
         # Ocultar popup
