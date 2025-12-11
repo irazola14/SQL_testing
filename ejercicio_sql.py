@@ -3710,6 +3710,10 @@ class SQLTesterApp:
         self.message_label = ttk.Label(input_frame, text="", foreground='blue', font=('Inter', 10, 'italic'))
         self.message_label.grid(row=4, column=0, sticky="ew", pady=(5, 0))
 
+        # Label para mostrar la ruta del log cuando se crea (inicialmente vacío)
+        self.log_label = ttk.Label(input_frame, text="", foreground='gray', font=('Inter', 9, 'italic'))
+        self.log_label.grid(row=5, column=0, sticky="w", pady=(2, 0))
+
         # --- UI: Panel Derecho (Output) ---
         output_frame = ttk.Frame(main_frame, relief="flat", padding="5")
         output_frame.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
@@ -3735,6 +3739,12 @@ class SQLTesterApp:
 
         # Cargar el primer ejercicio
         self.load_exercise()
+
+        # Logging: inicializado pero sin fichero hasta el primer intento
+        self._log_started = False
+        self._log_file_handle = None
+        self._log_path = None
+        self._log_start_time = None
 
     # --- 3. FUNCIONES DE BASE DE DATOS Y LÓGICA ---
     
@@ -3805,6 +3815,88 @@ class SQLTesterApp:
             return {}
 
         return alias_map
+
+    # --- Logging helpers ---
+    def _ensure_log_started(self):
+        """Crea el fichero de log si aún no existe. Se llama en el primer intento de la sesión.
+        El nombre es `Intento_HHMMSS_mmm.log` donde `mmm` son milisegundos.
+        """
+        if self._log_started:
+            return
+
+        from datetime import datetime
+        t = datetime.now()
+        self._log_start_time = t
+        hhmmss = t.strftime('%H%M%S')
+        millis = int(t.microsecond / 1000)
+        filename = f"Intento_{hhmmss}_{millis:03d}.log"
+
+        # Determinar carpeta base para el log.
+        # Cuando la app está congelada con PyInstaller --onefile, usar sys.argv[0]
+        # para obtener la carpeta donde se lanzó el ejecutable (no sys.executable,
+        # que puede apuntar a un temp dir durante ejecución).
+        try:
+            if getattr(sys, 'frozen', False):
+                exe_path = os.path.abspath(sys.argv[0])
+                base_dir = os.path.dirname(exe_path)
+            else:
+                base_dir = os.getcwd()
+        except Exception:
+            base_dir = os.getcwd()
+
+        # Intentar crear el directorio; si falla, caer a cwd
+        try:
+            os.makedirs(base_dir, exist_ok=True)
+        except Exception:
+            try:
+                base_dir = os.getcwd()
+                os.makedirs(base_dir, exist_ok=True)
+            except Exception:
+                base_dir = None
+
+        if not base_dir:
+            # No podemos crear carpeta de logs; desactivar logging de forma segura
+            self._log_started = False
+            self._log_file_handle = None
+            self._log_path = None
+            return
+
+        path = os.path.join(base_dir, filename)
+        try:
+            fh = open(path, 'a', encoding='utf-8')
+            self._log_file_handle = fh
+            self._log_path = path
+            self._log_started = True
+            # Header
+            fh.write(f"Log session start: {t.isoformat()}\n")
+            fh.flush()
+            # Mostrar la ruta del log en la UI si existe el widget
+            try:
+                if hasattr(self, 'log_label') and self.log_label:
+                    self.log_label.config(text=f"Log: {path}")
+            except Exception:
+                pass
+        except Exception:
+            # Si no podemos abrir el fichero, no queremos romper la app; simplemente desactivar logging
+            self._log_started = False
+            self._log_file_handle = None
+            self._log_path = None
+
+    def _write_log(self, message):
+        """Escribe una línea en el log; arranca el fichero en el primer uso."""
+        try:
+            # Iniciar el log si es la primera escritura
+            if not self._log_started:
+                self._ensure_log_started()
+            if not self._log_started or not self._log_file_handle:
+                return
+            from datetime import datetime
+            now = datetime.now().isoformat()
+            self._log_file_handle.write(f"[{now}] {message}\n")
+            self._log_file_handle.flush()
+        except Exception:
+            # Silenciar errores de logging para no afectar la UX
+            return
     
     def _autocomplete(self, event):
         """
@@ -3937,7 +4029,7 @@ class SQLTesterApp:
         formatted_names = [name.upper() for name in table_keys]
         
         # Usa join para unir todos los nombres de tabla en una sola línea.
-        schema_info = "Tablas Disponibles: " + ", ".join(formatted_names)
+        schema_info = "Tablas disponibles: " + ", ".join(formatted_names)
         
         # Añadimos la instrucción para ver detalles
         schema_info += ". Usa 'DESCRIBE nombre_tabla' para ver columnas."
@@ -4146,6 +4238,12 @@ class SQLTesterApp:
             self.clear_treeview()
             return
 
+        # Registrar intento de ejecución (crea el fichero al primer intento)
+        try:
+            self._write_log(f"EXECUTE: ExerciseIndex={self.current_exercise_index} QUERY={query}")
+        except Exception:
+            pass
+
         # Detección y corrección para el comando DESCRIBE no soportado en SQLite
         upper_query = query.upper()
         if upper_query.startswith('DESCRIBE') or upper_query.startswith('DESC '):
@@ -4169,6 +4267,10 @@ class SQLTesterApp:
                         text=f"Consulta PRAGMA ejecutada (equivalente a DESCRIBE). Resultado a la derecha.", 
                         foreground='purple'
                     )
+                    try:
+                        self._write_log(f"DESCRIBE: {table_name} by ExerciseIndex={self.current_exercise_index}")
+                    except Exception:
+                        pass
                     return 
                 else:
                     self.clear_treeview()
@@ -4190,7 +4292,15 @@ class SQLTesterApp:
             result_df = pd.read_sql_query(query, self.conn)
             self.display_result(result_df)
             self.message_label.config(text="Consulta ejecutada. Revisa los resultados a la derecha.")
+            try:
+                self._write_log(f"EXECUTE_RESULT: OK rows={len(result_df)} ExerciseIndex={self.current_exercise_index}")
+            except Exception:
+                pass
         except Exception as e:
+            try:
+                self._write_log(f"EXECUTE_RESULT: ERROR {e} ExerciseIndex={self.current_exercise_index}")
+            except Exception:
+                pass
             self.clear_treeview()
             self.message_label.config(text=f"ERROR SQL: {e}", foreground='red') 
 
@@ -4262,15 +4372,28 @@ class SQLTesterApp:
 
             # Si la comparación es exitosa (no lanza error)
             self.message_label.config(text="¡CORRECTO! Pasando al siguiente ejercicio...", foreground='green')
+            try:
+                # Registrar el intento y resultado
+                self._write_log(f"CHECK: ExerciseIndex={self.current_exercise_index} QUERY={user_query} RESULT=CORRECT")
+            except Exception:
+                pass
             self.master.after(1500, self.next_exercise) # Espera 1.5s antes de avanzar
 
         except AssertionError as e:
             # Los DataFrames son diferentes (estructura o contenido)
             self.message_label.config(text="INCORRECTO. El resultado no coincide con la solución esperada.", foreground='red')
             print(f"Detalle de la diferencia (debug): {e}")
+            try:
+                self._write_log(f"CHECK: ExerciseIndex={self.current_exercise_index} QUERY={user_query} RESULT=INCORRECT DETAIL={e}")
+            except Exception:
+                pass
         except Exception as e:
             # Error de sintaxis o de ejecución de la consulta
             self.message_label.config(text=f"ERROR SQL o de validación: {e}", foreground='red') 
+            try:
+                self._write_log(f"CHECK: ExerciseIndex={self.current_exercise_index} QUERY={user_query} RESULT=ERROR DETAIL={e}")
+            except Exception:
+                pass
 
 
     def load_exercise(self):
@@ -4295,6 +4418,20 @@ class SQLTesterApp:
         """Cierra la conexión a la DB y la aplicación."""
         if self.conn:
             self.conn.close()
+        # Cerrar fichero de log si fue creado
+        try:
+            if getattr(self, '_log_file_handle', None):
+                try:
+                    self._log_file_handle.write(f"Log session end: {__import__('datetime').datetime.now().isoformat()}\n")
+                    self._log_file_handle.flush()
+                except Exception:
+                    pass
+                try:
+                    self._log_file_handle.close()
+                except Exception:
+                    pass
+        except Exception:
+            pass
         self.master.destroy()
 
 # --- 4. EJECUCIÓN DEL SCRIPT ---
