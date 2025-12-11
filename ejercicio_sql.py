@@ -4432,6 +4432,28 @@ class SQLTesterApp:
                     pass
         except Exception:
             pass
+        # Si hay un log creado, abrir la carpeta que lo contiene (Windows: Explorer)
+        try:
+            if getattr(self, '_log_path', None):
+                log_dir = os.path.dirname(self._log_path)
+                if log_dir and os.path.exists(log_dir):
+                    try:
+                        # Windows
+                        if os.name == 'nt':
+                            os.startfile(log_dir)
+                        else:
+                            # macOS / Linux fallback
+                            import subprocess
+                            if sys.platform == 'darwin':
+                                subprocess.Popen(['open', log_dir])
+                            else:
+                                subprocess.Popen(['xdg-open', log_dir])
+                    except Exception:
+                        # No queremos bloquear el cierre por errores en abrir el explorador
+                        pass
+        except Exception:
+            pass
+
         self.master.destroy()
 
 # --- 4. EJECUCIÓN DEL SCRIPT ---
