@@ -1793,22 +1793,6 @@ INSERT INTO customers(first_name, last_name, phone, email, street, city, state, 
 INSERT INTO customers(first_name, last_name, phone, email, street, city, state, zip_code) VALUES('Ester','Acevedo',NULL,'ester.acevedo@gmail.com','671 Miles Court ','San Lorenzo','CA',94580);
 """
 
-SQL_SALES_SETUP = """
-DROP TABLE IF EXISTS sales;
-CREATE TABLE sales (
-    sale_id INTEGER PRIMARY KEY,
-    product_id INTEGER,
-    quantity INTEGER,
-    sale_date TEXT,
-    FOREIGN KEY (product_id) REFERENCES products(product_id)
-);
-INSERT INTO sales (sale_id, product_id, quantity, sale_date) VALUES (101, 1, 2, '2023-10-01');
-INSERT INTO sales (sale_id, product_id, quantity, sale_date) VALUES (102, 3, 5, '2023-10-02');
-INSERT INTO sales (sale_id, product_id, quantity, sale_date) VALUES (103, 2, 10, '2023-10-03');
-INSERT INTO sales (sale_id, product_id, quantity, sale_date) VALUES (104, 4, 1, '2023-10-04');
-INSERT INTO sales (sale_id, product_id, quantity, sale_date) VALUES (105, 1, 3, '2023-10-05');
-"""
-
 SQL_BRANDS_SETUP = """
 DROP TABLE IF EXISTS brands;
 CREATE TABLE brands (
@@ -1825,6 +1809,51 @@ INSERT INTO brands(brand_id,brand_name) VALUES(6,'Strider');
 INSERT INTO brands(brand_id,brand_name) VALUES(7,'Sun Bicycles');
 INSERT INTO brands(brand_id,brand_name) VALUES(8,'Surly');
 INSERT INTO brands(brand_id,brand_name) VALUES(9,'Trek');
+"""
+
+SQL_STORES_SETUP = """
+DROP TABLE IF EXISTS stores;
+CREATE TABLE stores (
+	store_id INTEGER PRIMARY KEY,
+	store_name TEXT NOT NULL,
+	phone TEXT,
+	email TEXT,
+	street TEXT,
+	city TEXT,
+	state TEXT,
+	zip_code TEXT
+);
+
+INSERT INTO stores(store_id,store_name, phone, email, street, city, state, zip_code) VALUES('1','Santa Cruz Bikes','(831) 476-4321','santacruz@bikes.shop','3700 Portola Drive', 'Santa Cruz','CA',95060);
+INSERT INTO stores(store_id,store_name, phone, email, street, city, state, zip_code) VALUES('2','Baldwin Bikes','(516) 379-8888','baldwin@bikes.shop','4200 Chestnut Lane', 'Baldwin','NY',11432);
+INSERT INTO stores(store_id,store_name, phone, email, street, city, state, zip_code) VALUES('3','Rowlett Bikes','(972) 530-5555','rowlett@bikes.shop','8000 Fairway Avenue', 'Rowlett','TX',75088);
+"""
+
+SQL_STAFFS_SETUP = """
+DROP TABLE IF EXISTS staffs;
+CREATE TABLE staffs (
+	staff_id INTEGER PRIMARY KEY,
+	first_name TEXT NOT NULL,
+	last_name TEXT NOT NULL,
+	email TEXT NOT NULL UNIQUE,
+	phone TEXT,
+	active INTEGER NOT NULL,
+	store_id INTEGER NULL,
+	manager_id INTEGER,
+	FOREIGN KEY (store_id) REFERENCES stores (store_id),
+	FOREIGN KEY (manager_id) REFERENCES staffs (staff_id)
+);
+
+INSERT INTO staffs(staff_id, first_name, last_name, email, phone, active, store_id, manager_id) VALUES(1,'Fabiola','Jackson','fabiola.jackson@bikes.shop','(831) 555-5554',1,1,NULL);
+INSERT INTO staffs(staff_id, first_name, last_name, email, phone, active, store_id, manager_id) VALUES(2,'Mireya','Copeland','mireya.copeland@bikes.shop','(831) 555-5555',1,1,1);
+INSERT INTO staffs(staff_id, first_name, last_name, email, phone, active, store_id, manager_id) VALUES(3,'Genna','Serrano','genna.serrano@bikes.shop','(831) 555-5556',1,1,2);
+INSERT INTO staffs(staff_id, first_name, last_name, email, phone, active, store_id, manager_id) VALUES(4,'Virgie','Wiggins','virgie.wiggins@bikes.shop','(831) 555-5557',1,1,2);
+INSERT INTO staffs(staff_id, first_name, last_name, email, phone, active, store_id, manager_id) VALUES(5,'Jannette','David','jannette.david@bikes.shop','(516) 379-4444',1,2,1);
+INSERT INTO staffs(staff_id, first_name, last_name, email, phone, active, store_id, manager_id) VALUES(6,'Marcelene','Boyer','marcelene.boyer@bikes.shop','(516) 379-4445',1,2,5);
+INSERT INTO staffs(staff_id, first_name, last_name, email, phone, active, store_id, manager_id) VALUES(7,'Venita','Daniel','venita.daniel@bikes.shop','(516) 379-4446',1,2,5);
+INSERT INTO staffs(staff_id, first_name, last_name, email, phone, active, store_id, manager_id) VALUES(8,'Kali','Vargas','kali.vargas@bikes.shop','(972) 530-5555',1,3,1);
+INSERT INTO staffs(staff_id, first_name, last_name, email, phone, active, store_id, manager_id) VALUES(9,'Layla','Terrell','layla.terrell@bikes.shop','(972) 530-5556',1,3,7);
+INSERT INTO staffs(staff_id, first_name, last_name, email, phone, active, store_id, manager_id) VALUES(10,'Bernardine','Houston','bernardine.houston@bikes.shop','(972) 530-5557',1,3,7);
 """
 
 SQL_CATEGORIES_SETUP = """
@@ -1850,11 +1879,6 @@ TABLES = {
         'content': SQL_PRODUCTS_SETUP, # Contenido SQL interno para fallback
         'description': "Contiene información sobre los artículos que se venden.",
     },
-    'sales': {
-        'file_path': 'sql_setup/sales.sql', # Ruta al archivo SQL para el entorno real
-        'content': SQL_SALES_SETUP, # Contenido SQL interno para fallback
-        'description': "Registra las transacciones de venta.",
-    },
     'brands': {
         'file_path': 'sql_setup/brands.sql', # Ruta al archivo SQL para el entorno real
         'content': SQL_BRANDS_SETUP, # Contenido SQL interno para fallback
@@ -1868,6 +1892,16 @@ TABLES = {
     'customers': {
         'file_path': 'sql_setup/customers.sql', # Ruta al archivo SQL para el entorno real
         'content': SQL_CUSTOMERS_SETUP, # Contenido SQL interno para fallback
+        'description': "Registra las marcas."
+    },
+    'stores': {
+        'file_path': 'sql_setup/stores.sql', # Ruta al archivo SQL para el entorno real
+        'content': SQL_STORES_SETUP, # Contenido SQL interno para fallback
+        'description': "Registra las marcas."
+    },
+    'staffs': {
+        'file_path': 'sql_setup/staffs.sql', # Ruta al archivo SQL para el entorno real
+        'content': SQL_STAFFS_SETUP, # Contenido SQL interno para fallback
         'description': "Registra las marcas."
     }
 }
