@@ -55,10 +55,10 @@ Crear un ejecutable
     Ejecutar PyInstaller:
     Usa el siguiente comando. Las opciones que usamos son importantes:
 
+    pyinstaller --onefile --windowed --name "SQLTester" sql_tester.py
+
     -w o --windowed: Le dice a PyInstaller que no abra una ventana de consola (línea de comandos) al ejecutar la aplicación, lo cual es ideal para una aplicación de interfaz gráfica (GUI) como la tuya.
 
     --onefile: Empaqueta toda la aplicación y sus dependencias en un único archivo .exe, facilitando su distribución.
 
     --name "SQLTester": Define el nombre del archivo ejecutable final.
-
-    pyinstaller --onefile --windowed --name "SQLTester" sql_tester.py
