@@ -410,6 +410,8 @@ class SQLTesterApp:
         self._suggestion_listbox.bind('<Double-Button-1>', lambda e: self._apply_selected_suggestion())
         self._suggestion_listbox.bind('<Return>', lambda e: self._apply_selected_suggestion())
         self._suggestion_listbox.bind('<Escape>', lambda e: self._hide_suggestions())
+        # Permitir aceptar la sugerencia con TAB mientras la lista tiene el foco
+        self._suggestion_listbox.bind('<Tab>', self._on_listbox_tab)
         # Estado auxiliar
         self._last_token = ''
         self._last_table_prefix = ''
@@ -484,6 +486,44 @@ class SQLTesterApp:
             return dict()
 
         return metadata
+
+    def _get_alias_map(self, full_text):
+        """
+        Extrae un mapa de alias -> tabla a partir del texto SQL dado.
+        - Maneja cláusulas FROM con varias tablas separadas por comas.
+        - Maneja JOINs y formas con/without AS: e.g. `FROM products p`, `JOIN brands AS b`.
+        Devuelve dict con claves en minúsculas.
+        """
+        alias_map = {}
+        try:
+            text = full_text or ''
+            # Buscar la porción AFTER FROM hasta WHERE/GROUP/ORDER/LIMIT u fin
+            for m in re.finditer(r'\bfrom\b\s+(.*?)(?:\bwhere\b|\bgroup\b|\border\b|\bhaving\b|\blimit\b|$)', text, flags=re.I|re.S):
+                from_seg = m.group(1)
+                # separar por comas en el FROM
+                parts = [p.strip() for p in re.split(r',', from_seg) if p.strip()]
+                for part in parts:
+                    # part puede ser: table [AS] alias, o subquery (ignoramos subqueries)
+                    sub = re.match(r'([A-Za-z_]\w*)(?:\s+(?:as\s+)?([A-Za-z_]\w*))?', part, flags=re.I)
+                    if sub:
+                        table = sub.group(1).lower()
+                        alias = sub.group(2).lower() if sub.group(2) else None
+                        if alias:
+                            alias_map[alias] = table
+                        # Mapear el nombre de tabla a sí mismo también ayuda en resoluciones directas
+                        alias_map[table] = table
+
+            # También capturar JOIN ... table [AS] alias
+            for jm in re.finditer(r'\bjoin\b\s+([A-Za-z_]\w*)(?:\s+(?:as\s+)?([A-Za-z_]\w*))?', text, flags=re.I):
+                table = jm.group(1).lower()
+                alias = jm.group(2).lower() if jm.group(2) else None
+                if alias:
+                    alias_map[alias] = table
+                alias_map[table] = table
+        except Exception:
+            return {}
+
+        return alias_map
     
     def _autocomplete(self, event):
         """
@@ -514,14 +554,17 @@ class SQLTesterApp:
             column_prefix = parts[1].lower() if len(parts) > 1 else ''
             
             resolved_table = None
-            
-            # Buscar el nombre real de la tabla (usando prefijo del alias o nombre completo)
-            # Esto maneja alias cortos como 'P' para 'products' si está en el FROM, 
-            # aunque en este código, solo busca por prefijo en el nombre completo de la tabla.
-            for full_name in self.schema_metadata.keys():
-                if full_name.startswith(table_prefix):
-                    resolved_table = full_name
-                    break
+            # Intentar resolver alias usando el SQL ya escrito en el buffer
+            alias_map = self._get_alias_map(text_widget.get("1.0", tk.END))
+            if table_prefix in alias_map:
+                resolved_table = alias_map[table_prefix]
+
+            # Si no se resolvió por alias, buscar por prefijo entre los nombres de tabla reales
+            if not resolved_table:
+                for full_name in self.schema_metadata.keys():
+                    if full_name.startswith(table_prefix):
+                        resolved_table = full_name
+                        break
             
             if resolved_table and resolved_table in self.schema_metadata:
                 suggestions = [
@@ -689,6 +732,16 @@ class SQLTesterApp:
         self._last_token = ''
         self._last_table_prefix = ''
         self._last_column_prefix = ''
+
+    def _on_listbox_tab(self, event):
+        """Handler para la tecla TAB mientras la lista de sugerencias tiene el foco.
+        Acepta la sugerencia actual y evita que el foco cambie fuera del widget.
+        """
+        try:
+            self._apply_selected_suggestion()
+        except Exception:
+            pass
+        return "break"
 
 
     def _load_tables_to_db(self):
