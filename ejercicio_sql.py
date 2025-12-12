@@ -3590,8 +3590,8 @@ TABLES = {
 # Definición de los ejercicios 
 EXERCISES = [
     {
-        'prompt': "Ejercicio 1/3: Muestra el `product_name` y el `list_price` de todos los productos. Ordena por nombre alfabéticamente.",
-        'correct_query': "SELECT product_name, list_price FROM products ORDER BY product_name ASC"
+        'prompt': "Ejercicio 1/3: Muestra los distintos id y el name de todos los productos. Ordena por nombre alfabéticamente.",
+        'correct_query': "SELECT DISTINCT product_id, product_name FROM products ORDER BY product_name ASC"
     },
     {
         'prompt': "Ejercicio 2/3: Calcula la suma total de ítems vendidos (`quantity`) para el producto con `product_id` 1. Nombra la columna resultante como `total_sold`.",
