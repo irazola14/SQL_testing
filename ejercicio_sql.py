@@ -4347,16 +4347,20 @@ class SQLTesterApp:
             # 3. Normalizar DataFrames para una comparación estricta (compatibilidad de versiones de Pandas)
             
             # Chequear nombres de columnas (ignorando mayúsculas/minúsculas)
-            expected_cols = [c.lower() for c in expected_df.columns]
-            user_cols = [c.lower() for c in user_df.columns]
+            expected_cols_lower = [c.lower() for c in expected_df.columns]
+            user_cols_lower = [c.lower() for c in user_df.columns]
 
-            if expected_cols != user_cols:
+            # Aceptar si las columnas son las mismas aunque el orden sea distinto
+            if set(expected_cols_lower) != set(user_cols_lower):
                 raise AssertionError(
-                    f"Las columnas no coinciden. Esperado: {expected_cols}, Obtenido: {user_cols}"
+                    f"Las columnas no coinciden. Esperado: {expected_cols_lower}, Obtenido: {user_cols_lower}"
                 )
-            
+
             # Reordenar las columnas del usuario para que coincidan con el orden esperado (necesario para la validación de Pandas)
-            user_df = user_df[[col for col in expected_df.columns]]
+            # Hacemos un mapeo insensible a mayúsculas para preservar nombres reales
+            user_col_map = {c.lower(): c for c in user_df.columns}
+            ordered_user_cols = [user_col_map[c.lower()] for c in expected_df.columns]
+            user_df = user_df[ordered_user_cols]
             
             # Reiniciar índices para la comparación (ignora el orden de las filas si el ORDER BY es el mismo)
             expected_df = expected_df.reset_index(drop=True)
