@@ -6102,16 +6102,24 @@ TABLES = {
 # Definición de los ejercicios 
 EXERCISES = [
     {
-        'prompt': "Ejercicio 1/3: Muestra los distintos id y el name de todos los productos. Ordena por nombre alfabéticamente.",
-        'correct_query': "SELECT DISTINCT product_id, product_name FROM products ORDER BY product_name ASC"
+        'prompt': "Ejercicio 1/5 (Básico): Lista `product_id`, `product_name` y `list_price` de los productos cuya `brand_id` esté en (1,4,9) y cuyo `list_price` sea mayor que 500. Ordena por `list_price` descendente.",
+        'correct_query': "SELECT product_id, product_name, list_price FROM products WHERE brand_id IN (1,4,9) AND list_price > 500 ORDER BY list_price DESC"
     },
     {
-        'prompt': "Ejercicio 2/3: Calcula la suma total de ítems vendidos (`quantity`) para el producto con `product_id` 1. Nombra la columna resultante como `total_sold`.",
-        'correct_query': "SELECT SUM(quantity) AS total_sold FROM sales WHERE product_id = 1"
+        'prompt': "Ejercicio 2/5 (Agregaciones): Para cada producto, calcula la cantidad total vendida (`total_sold`) sumando `quantity` en `order_items`. Muestra `product_id`, `product_name` y `total_sold`. Ordena por `total_sold` descendente.",
+        'correct_query': "SELECT oi.product_id, p.product_name, SUM(oi.quantity) AS total_sold FROM order_items oi JOIN products p ON oi.product_id = p.product_id GROUP BY oi.product_id, p.product_name ORDER BY total_sold DESC"
     },
     {
-        'prompt': "Ejercicio 3/3: Encuentra el nombre del producto (`product_name`) de los productos de la `brand_id` 9 (Trek) con un `list_price` superior a 500.",
-        'correct_query': "SELECT product_name FROM products WHERE brand_id = 9 AND list_price > 500"
+        'prompt': "Ejercicio 3/5 (JOINs múltiples): Para cada pedido (`order_id`), muestra `order_id`, el nombre completo del cliente (`first_name || ' ' || last_name`), `store_name` y el importe total del pedido `total_amount` (suma de quantity * list_price * (1 - discount)). Ordena por `total_amount` descendente y muestra sólo las 10 más altas.",
+        'correct_query': "SELECT o.order_id, c.first_name || ' ' || c.last_name AS customer_name, s.store_name, SUM(oi.quantity * oi.list_price * (1 - IFNULL(oi.discount,0))) AS total_amount FROM orders o JOIN customers c ON o.customer_id = c.customer_id JOIN stores s ON o.store_id = s.store_id JOIN order_items oi ON o.order_id = oi.order_id GROUP BY o.order_id, customer_name, s.store_name ORDER BY total_amount DESC LIMIT 10"
+    },
+    {
+        'prompt': "Ejercicio 4/5 (Básico + WHERE): Encuentra todos los pedidos (`order_id`) cuyo `order_status` sea 4 y cuyo cliente viva en la ciudad 'Madrid' o 'Barcelona'. Muestra `order_id`, `customer_id`, `order_date`, `city` y `order_status`.",
+        'correct_query': "SELECT o.order_id, o.customer_id, o.order_date, c.city, o.order_status FROM orders o JOIN customers c ON o.customer_id = c.customer_id WHERE o.order_status = 4 AND c.city IN ('Madrid','Barcelona')"
+    },
+    {
+        'prompt': "Ejercicio 5/5 (Ordenación y agregación por marca): Calcula los 5 `brand_name` con mayor facturación total (suma de `quantity * list_price * (1 - discount)`), mostrando `brand_id`, `brand_name` y `revenue`. Ordena por `revenue` descendente y limita a 5.",
+        'correct_query': "SELECT b.brand_id, b.brand_name, SUM(oi.quantity * oi.list_price * (1 - IFNULL(oi.discount,0))) AS revenue FROM order_items oi JOIN products p ON oi.product_id = p.product_id JOIN brands b ON p.brand_id = b.brand_id GROUP BY b.brand_id, b.brand_name ORDER BY revenue DESC LIMIT 5"
     }
 ]
 
@@ -6131,6 +6139,13 @@ class SQLTesterApp:
         # Inicializar la base de datos en memoria
         # Habilitar la compatibilidad con Foreign Keys en SQLite
         self.conn = sqlite3.connect(':memory:')
+        # Registrar función CONCAT para compatibilidad con sintaxis común en otros RDBMS
+        # CONCAT(a,b,...) concatenará los argumentos tratando None como cadena vacía
+        try:
+            self.conn.create_function("CONCAT", -1, lambda *args: ''.join('' if a is None else str(a) for a in args))
+        except Exception:
+            # Si no se puede registrar la función, no rompemos la inicialización
+            pass
         self.conn.execute("PRAGMA foreign_keys = ON;") 
         self.conn.commit()
         
