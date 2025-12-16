@@ -6559,7 +6559,7 @@ class SQLTesterApp:
         schema_info = "Tablas disponibles: " + ", ".join(formatted_names)
         
         # Añadimos la instrucción para ver detalles
-        schema_info += ". Usa 'DESCRIBE nombre_tabla' para ver columnas."
+        schema_info += ". Usa 'DESCRIBE nombre_tabla' para ver las columnas de la tabla."
         
         self.schema_text.set(schema_info.strip())
 
