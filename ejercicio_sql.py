@@ -6234,8 +6234,10 @@ class SQLTesterApp:
         ttk.Button(button_frame, text="EJECUTAR CONSULTA", command=self.execute_query, style='TButton').grid(row=0, column=0, sticky="ew", padx=2, pady=5)
         ttk.Button(button_frame, text="COMPROBAR SOLUCIÓN", command=self.check_solution, style='TButton').grid(row=0, column=1, sticky="ew", padx=2, pady=5)
         
-        self.message_label = ttk.Label(input_frame, text="", foreground='blue', font=('Inter', 10, 'italic'))
-        self.message_label.grid(row=4, column=0, sticky="ew", pady=(5, 0))
+        # Mensajes de estado/errores: usar caja con scroll y altura fija para evitar que el mensaje ocupe toda la UI
+        self.message_box = scrolledtext.ScrolledText(input_frame, wrap=tk.WORD, height=6, font=('Inter', 10, 'italic'), state='disabled', background='#f8f8f8')
+        self.message_box.grid(row=4, column=0, sticky="nsew", pady=(5, 0))
+        input_frame.grid_rowconfigure(4, weight=0)  # Mantener la fila con altura fija (no crecer con el contenido)"
 
         # Label para mostrar la ruta del log cuando se crea (inicialmente vacío)
         self.log_label = ttk.Label(input_frame, text="", foreground='gray', font=('Inter', 9, 'italic'))
@@ -6761,7 +6763,7 @@ class SQLTesterApp:
         """Ejecuta la consulta del usuario y muestra el resultado en el Treeview, maneja DESCRIBE/PRAGMA."""
         query = self.query_input.get("1.0", tk.END).strip()
         if not query:
-            self.message_label.config(text="Por favor, introduce una consulta SQL.")
+            self.set_message("Por favor, introduce una consulta SQL.")
             self.clear_treeview()
             return
 
@@ -6790,9 +6792,9 @@ class SQLTesterApp:
                     self.display_result(result_df)
                     
                     # Mensaje informativo para el usuario
-                    self.message_label.config(
-                        text=f"Consulta PRAGMA ejecutada (equivalente a DESCRIBE). Resultado a la derecha.", 
-                        foreground='purple'
+                    self.set_message(
+                        f"Consulta PRAGMA ejecutada (equivalente a DESCRIBE). Resultado a la derecha.", 
+                        color='purple'
                     )
                     try:
                         self._write_log(f"DESCRIBE: {table_name} by ExerciseIndex={self.current_exercise_index}")
@@ -6801,15 +6803,15 @@ class SQLTesterApp:
                     return 
                 else:
                     self.clear_treeview()
-                    self.message_label.config(text=f"ERROR SQL: Tabla '{table_name}' no encontrada.", foreground='red')
+                    self.set_message(f"ERROR SQL: Tabla '{table_name}' no encontrada.", color='red')
                     return
             except IndexError:
                 self.clear_treeview()
-                self.message_label.config(text="ERROR: Sintaxis de DESCRIBE inválida. Usa 'DESCRIBE nombre_tabla'.", foreground='red')
+                self.set_message("ERROR: Sintaxis de DESCRIBE inválida. Usa 'DESCRIBE nombre_tabla'.", color='red')
                 return
             except Exception as e:
                 self.clear_treeview()
-                self.message_label.config(text=f"ERROR en DESCRIBE/PRAGMA: {e}", foreground='red')
+                self.set_message(f"ERROR en DESCRIBE/PRAGMA: {e}", color='red')
                 return
 
 
@@ -6818,7 +6820,7 @@ class SQLTesterApp:
             # Ejecutar la consulta y obtener el DataFrame resultante
             result_df = pd.read_sql_query(query, self.conn)
             self.display_result(result_df)
-            self.message_label.config(text="Consulta ejecutada. Revisa los resultados a la derecha.")
+            self.set_message("Consulta ejecutada. Revisa los resultados a la derecha.")
             try:
                 self._write_log(f"EXECUTE_RESULT: OK rows={len(result_df)} ExerciseIndex={self.current_exercise_index}")
             except Exception:
@@ -6829,7 +6831,7 @@ class SQLTesterApp:
             except Exception:
                 pass
             self.clear_treeview()
-            self.message_label.config(text=f"ERROR SQL: {e}", foreground='red') 
+            self.set_message(f"ERROR SQL: {e}", color='red') 
 
     def display_result(self, df):
         """Muestra un DataFrame en el widget Treeview."""
@@ -6848,6 +6850,22 @@ class SQLTesterApp:
         for index, row in df.iterrows():
             self.tree.insert("", "end", values=list(row))
             
+    def set_message(self, text, color=None):
+        """Muestra el mensaje en la caja de mensajes con scroll; evita que el mensaje expanda la UI."""
+        try:
+            self.message_box.config(state='normal')
+            self.message_box.delete("1.0", tk.END)
+            self.message_box.insert(tk.END, text)
+            # Configurar color si se indicó (Text utiliza tags)
+            if color:
+                self.message_box.tag_configure("color", foreground=color)
+                self.message_box.tag_add("color", "1.0", "end")
+            else:
+                self.message_box.tag_configure("color", foreground='black')
+                self.message_box.tag_add("color", "1.0", "end")
+        finally:
+            self.message_box.config(state='disabled')
+
     def clear_treeview(self):
         """Limpia el contenido del Treeview."""
         self.tree.delete(*self.tree.get_children())
@@ -6858,7 +6876,7 @@ class SQLTesterApp:
         user_query = self.query_input.get("1.0", tk.END).strip()
         
         if not user_query:
-            self.message_label.config(text="No hay consulta para validar.", foreground='orange')
+            self.set_message("No hay consulta para validar.", color='orange')
             return
 
         current_exercise = self.exercises[self.current_exercise_index]
@@ -6902,7 +6920,7 @@ class SQLTesterApp:
             )
 
             # Si la comparación es exitosa (no lanza error)
-            self.message_label.config(text="¡CORRECTO! Pasando al siguiente ejercicio...", foreground='green')
+            self.set_message("¡CORRECTO! Pasando al siguiente ejercicio...", color='green') 
             try:
                 # Registrar el intento y resultado
                 self._write_log(f"CHECK: ExerciseIndex={self.current_exercise_index} QUERY={user_query} RESULT=CORRECT")
@@ -6912,7 +6930,7 @@ class SQLTesterApp:
 
         except AssertionError as e:
             # Los DataFrames son diferentes (estructura o contenido)
-            self.message_label.config(text="INCORRECTO. El resultado no coincide con la solución esperada.", foreground='red')
+            self.set_message("INCORRECTO. El resultado no coincide con la solución esperada.", color='red')
             print(f"Detalle de la diferencia (debug): {e}")
             try:
                 self._write_log(f"CHECK: ExerciseIndex={self.current_exercise_index} QUERY={user_query} RESULT=INCORRECT DETAIL={e}")
@@ -6920,7 +6938,7 @@ class SQLTesterApp:
                 pass
         except Exception as e:
             # Error de sintaxis o de ejecución de la consulta
-            self.message_label.config(text=f"ERROR SQL o de validación: {e}", foreground='red') 
+            self.set_message(f"ERROR SQL o de validación: {e}", color='red') 
             try:
                 self._write_log(f"CHECK: ExerciseIndex={self.current_exercise_index} QUERY={user_query} RESULT=ERROR DETAIL={e}")
             except Exception:
@@ -6934,7 +6952,7 @@ class SQLTesterApp:
             self.prompt_label.config(text=exercise['prompt'])
             self.query_input.delete("1.0", tk.END)
             self.clear_treeview()
-            self.message_label.config(text="Escribe tu consulta y compruébala.", foreground='blue')
+            self.set_message("Escribe tu consulta y compruébala.", color='blue')
         else:
             # Final de los ejercicios
             self.master.destroy()
